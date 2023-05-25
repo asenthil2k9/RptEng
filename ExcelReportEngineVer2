@@ -1,0 +1,59 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+public class ExcelReportEngine {
+
+    public static void main(String[] args) throws IOException {
+        String rawDataPath = "path/to/rawData.xlsx";
+        String templatePath = "path/to/template.xlsx";
+        String outputPath = "path/to/output.xlsx";
+
+        // Load raw data sheet
+        Workbook rawDataWorkbook = WorkbookFactory.create(new File(rawDataPath));
+        Sheet rawDataSheet = rawDataWorkbook.getSheetAt(0);
+
+        // Load template sheet
+        Workbook templateWorkbook = WorkbookFactory.create(new File(templatePath));
+        Sheet templateSheet = templateWorkbook.getSheetAt(0);
+
+        // Copy data from raw data sheet to template sheet
+        for (Row rawRow : rawDataSheet) {
+            Row templateRow = templateSheet.createRow(rawRow.getRowNum());
+            for (Cell rawCell : rawRow) {
+                Cell templateCell = templateRow.createCell(rawCell.getColumnIndex());
+                templateCell.setCellValue(rawCell.getStringCellValue()); // Adjust as per your data type
+            }
+        }
+
+        // Refresh formulas in the template sheet
+        FormulaEvaluator formulaEvaluator = templateWorkbook.getCreationHelper().createFormulaEvaluator();
+        for (Row templateRow : templateSheet) {
+            for (Cell templateCell : templateRow) {
+                if (templateCell.getCellType() == CellType.FORMULA) {
+                    formulaEvaluator.evaluateFormulaCell(templateCell);
+                }
+            }
+        }
+
+        // Auto-adjust column widths
+        for (int columnIndex = 0; columnIndex < templateSheet.getRow(0).getLastCellNum(); columnIndex++) {
+            templateSheet.autoSizeColumn(columnIndex);
+        }
+
+        // Save the output to a new Excel workbook
+        try (FileOutputStream outputStream = new FileOutputStream(outputPath)) {
+            templateWorkbook.write(outputStream);
+        }
+
+        // Generate WYSIWYG PDF output using a separate library like iText
+        generatePDFOutput(outputPath, "path/to/output.pdf");
+    }
+
+    private static void generatePDFOutput(String inputPath, String outputPath) {
+        // Code to generate PDF output using iText library
+        // Adjust as per your specific PDF generation requirements
+    }
+}
