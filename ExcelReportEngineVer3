@@ -1,0 +1,87 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.*;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+public class ExcelReportEngine {
+
+    public static void main(String[] args) {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            // Load the raw data sheet
+            Workbook rawDataWorkbook = WorkbookFactory.create(new File("rawdata.xlsx"));
+            Sheet rawDataSheet = rawDataWorkbook.getSheetAt(0);
+
+            // Load the template Excel file
+            Workbook templateWorkbook = WorkbookFactory.create(new File("template.xlsx"));
+            Sheet templateSheet = templateWorkbook.getSheetAt(0);
+
+            // Create a new workbook to store the output
+            Workbook outputWorkbook = new XSSFWorkbook();
+            Sheet outputSheet = outputWorkbook.createSheet("Output");
+
+            // Copy the data from the raw data sheet to the template sheet
+            for (Row rawDataRow : rawDataSheet) {
+                Row outputRow = outputSheet.createRow(rawDataRow.getRowNum());
+                for (Cell rawCell : rawDataRow) {
+                    int columnNum = rawCell.getColumnIndex();
+                    Cell templateCell = templateSheet.getRow(rawDataRow.getRowNum()).getCell(columnNum);
+                    Cell outputCell = outputRow.createCell(columnNum);
+                    outputCell.setCellValue(rawCell.getStringCellValue());
+
+                    // Copy the cell format from the template
+                    outputCell.setCellStyle(templateCell.getCellStyle());
+                }
+            }
+
+            // Refresh the formulas in the template sheet
+            FormulaEvaluator evaluator = templateWorkbook.getCreationHelper().createFormulaEvaluator();
+            for (Row templateRow : templateSheet) {
+                for (Cell templateCell : templateRow) {
+                    if (templateCell.getCellType() == CellType.FORMULA) {
+                        evaluator.evaluateFormulaCell(templateCell);
+                    }
+                }
+            }
+
+            // Auto-adjust columns in the output sheet
+            for (int i = 0; i < outputSheet.getRow(0).getLastCellNum(); i++) {
+                outputSheet.autoSizeColumn(i);
+            }
+
+            // Write the output workbook to a new file
+            try (FileOutputStream outputStream = new FileOutputStream("output.xlsx")) {
+                outputWorkbook.write(outputStream);
+            }
+
+            System.out.println("Excel report generated successfully.");
+
+            // Generate PDF from the output workbook
+            try (FileOutputStream pdfOutputStream = new FileOutputStream("output.pdf")) {
+                Document document = new Document();
+                PdfWriter writer = PdfWriter.getInstance(document, pdfOutputStream);
+                document.open();
+
+                PdfContentByte cb = writer.getDirectContent();
+                PdfTemplate template = cb.createTemplate(PageSize.A4.getWidth(), PageSize.A4.getHeight());
+                PdfGraphics2D graphics2D = new PdfGraphics2D(cb, PageSize.A4.getWidth(), PageSize.A4.getHeight());
+                Graphics2D g2d = (Graphics2D) graphics2D.create();
+                document.newPage();
+                g2d.setClip(0, 0, (int) PageSize.A4.getWidth(), (int) PageSize.A4.getHeight());
+                outputSheet.setSelected(true);
+                outputSheet.showInPane(0, 0);
+                outputSheet.autoSizeColumn(0, outputSheet.getRow(0).getLastCellNum());
+
+                outputSheet.draw(graphics2D);
+                graphics2D.dispose();
+                cb.addTemplate(template, 0, 0);
+
+                document.close();
+            }
+
+            System.out.println("PDF report generated successfully.");
+        } catch (IOException | DocumentException e) {
+           
